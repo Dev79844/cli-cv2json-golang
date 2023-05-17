@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -114,76 +113,93 @@ func processCsv(fileData inputFile, writerChannel chan<-map[string] string){
 
 }
 
-func createStringWriter(csvPath string) func(string,bool){
+func createStringWriter(csvPath string) func(string, bool) {
 	jsonDir := filepath.Dir(csvPath)
-	jsonName := fmt.Sprintf("%s.json",strings.TrimSuffix(filepath.Base(csvPath), ".csv"))
-	finalLocation := filepath.Join(jsonDir,jsonName)
+	jsonName := fmt.Sprintf("%s.json", strings.TrimSuffix(filepath.Base(csvPath), ".csv"))
+	finalLocation := fmt.Sprintf("%s/%s", jsonDir, jsonName)
 
-	f,err := os.Create(finalLocation)
+	f, err := os.Create(finalLocation)
 	check(err)
 
-	return func (data string,close bool){
-		_,err := f.WriteString(data)
+	return func(data string, close bool) {
+		_, err := f.WriteString(data)
 		check(err)
+
 		if close {
 			f.Close()
 		}
 	}
 }
 
-func getJSONfunc(pretty bool) (func(map[string] string) string, string){
-	var jsonFunc func(map[string] string) string
+func getJSONFunc(pretty bool) (func(map[string]string) string, string) {
+	var jsonFunc func(map[string]string) string
 	var breakLine string
-	if pretty{
+	if pretty {
 		breakLine = "\n"
-		jsonFunc = func(record map[string] string) string {
-			jsonData,_ := json.MarshalIndent(record,"	","	")
-			return "	"+string(jsonData)
+		jsonFunc = func(record map[string]string) string {
+			jsonData, _ := json.MarshalIndent(record, "   ", "   ")
+			return "   " + string(jsonData)
 		}
-	}else{
-		breakLine=""
-		jsonFunc = func(record map[string] string) string {
-			jsonData,_ := json.Marshal(record)
+	} else {
+		breakLine = ""
+		jsonFunc = func(record map[string]string) string {
+			jsonData, _ := json.Marshal(record)
 			return string(jsonData)
 		}
 	}
-	return jsonFunc,breakLine
+
+	return jsonFunc, breakLine
 }
 
-func writeJSONFile(csvString string, writerChannel <-chan map[string] string, done chan<- bool, pretty bool){
-	writeString := createStringWriter(csvString)
-	jsonFunc,breakLine := getJSONfunc(pretty)
+func writeJSONFile(csvPath string, writerChannel <-chan map[string]string, done chan<- bool, pretty bool) {
+	writeString := createStringWriter(csvPath)
+	jsonFunc, breakLine := getJSONFunc(pretty)
 
-	fmt.Println("Writing the JSON file")
+	fmt.Println("Writing JSON file...")
 
 	writeString("["+breakLine, false)
 	first := true
-
-	for{
-		record,more := <-writerChannel
-		if more{
-			if !first{
-				writeString(","+breakLine,false)
-			}else{
+	for {
+		record, more := <-writerChannel
+		if more {
+			if !first {
+				writeString(","+breakLine, false)
+			} else {
 				first = false
 			}
 
 			jsonData := jsonFunc(record)
-			writeString(jsonData,false)
-		}else{
-			writeString(breakLine+"]",true)
-			fmt.Println("Completed")
-			done<-true
+			writeString(jsonData, false)
+		} else {
+			writeString(breakLine+"]", true)
+			fmt.Println("Completed!")
+			done <- true
 			break
 		}
 	}
-
 }
 
 func main(){
-	fileData,err := getFileData()
-	if err != nil {
-		log.Fatal(err)
+	flag.Usage = func() {
+		fmt.Printf("Usage: %s [options] <csvFile>\nOptions:\n", os.Args[0])
+		flag.PrintDefaults()
 	}
-	fmt.Println(fileData)
+
+	fileData, err := getFileData()
+
+	if err != nil {
+		exit(err)
+	}
+
+	if _, err := checkIfValidFile(fileData.filePath); err != nil {
+		exit(err)
+	}
+
+	writerChannel := make(chan map[string]string)
+	done := make(chan bool)
+
+	go processCsv(fileData, writerChannel)
+	go writeJSONFile(fileData.filePath, writerChannel, done, fileData.pretty)
+
+	<-done
 }
