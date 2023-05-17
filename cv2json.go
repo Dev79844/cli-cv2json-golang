@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/csv"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -47,6 +49,68 @@ func checkIfValidFile(filename string) (bool,error){
 	return true, nil
 }
 
+func exit(err error){
+	fmt.Fprintf(os.Stderr, "error: %v\n", err)
+   	os.Exit(1)
+}
+
+func check(err error){
+	if err != nil {
+		check(err)
+	}
+}
+
+func processLine(headers []string, dataList []string) (map[string]string, error) {
+	if len(dataList) != len(headers) {
+		return nil, errors.New("line doesn't match headers format. Skipping")
+	}
+	recordMap := make(map[string]string)
+	for i, name := range headers {
+		recordMap[name] = dataList[i]
+	}
+	return recordMap, nil
+}
+
+func processCsv(fileData inputFile, writerChannel chan<-map[string] string){
+	file,err := os.Open(fileData.filePath)
+
+	check(err)
+
+	defer file.Close()
+
+	var headers, line []string
+
+	reader := csv.NewReader(file)
+
+	if fileData.seperator == "semicolon"{
+		reader.Comma = ';'
+	}
+
+	headers, err = reader.Read()
+
+	check(err)
+
+	for{
+		line,err = reader.Read()
+
+		if err == io.EOF{
+			close(writerChannel)
+			break
+		}else if err != nil {
+			exit(err)
+		}
+
+		record,err := processLine(headers, line)
+		if err != nil {
+			fmt.Printf("Line: %sError: %s\n", line, err)
+			continue
+		}
+
+		writerChannel<-record
+
+	}
+
+}
 
 func main(){
 	fileData,err := getFileData()
