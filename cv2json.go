@@ -1,8 +1,10 @@
 package main
 
-import(
+import (
 	"errors"
 	"flag"
+	"fmt"
+	"log"
 	"os"
 )
 
@@ -22,7 +24,7 @@ func getFileData() (inputFile, error){
 
 	flag.Parse()
 
-	fileLocation := os.Args(0)
+	fileLocation := os.Args[0]
 
 	if !( *seperator == "comma" || *seperator == "semicolon" ){
 		return inputFile{}, errors.New("Only comma or semicolon seperators allowed")
@@ -31,6 +33,12 @@ func getFileData() (inputFile, error){
 	return inputFile{fileLocation, *seperator, *pretty}, nil
 }
 
-func main(){
 
+
+func main(){
+	fileData,err := getFileData()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(fileData)
 }
