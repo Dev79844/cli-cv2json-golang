@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 type inputFile struct{
@@ -14,25 +15,37 @@ type inputFile struct{
 	pretty bool
 }
 
-func getFileData() (inputFile, error){
+func getFileData() (inputFile, error) {
 	if len(os.Args) < 2 {
-		return inputFile{}, errors.New("A filepath argument is required")
+		return inputFile{}, errors.New("a filepath argument is required")
 	}
 
-	seperator := flag.String("seperator","comma","Column seperator")
+	separator := flag.String("separator", "comma", "Column separator")
 	pretty := flag.Bool("pretty", false, "Generate pretty JSON")
 
 	flag.Parse()
 
-	fileLocation := os.Args[0]
+	fileLocation := flag.Arg(0)
 
-	if !( *seperator == "comma" || *seperator == "semicolon" ){
-		return inputFile{}, errors.New("Only comma or semicolon seperators allowed")
+	if !(*separator == "comma" || *separator == "semicolon") {
+		return inputFile{}, errors.New("only comma or semicolon separators are allowed")
 	}
 
-	return inputFile{fileLocation, *seperator, *pretty}, nil
+	return inputFile{fileLocation, *separator, *pretty}, nil
 }
 
+func checkIfValidFile(filename string) (bool,error){
+
+	if fileExtension := filepath.Ext(filename); fileExtension != ".csv"{
+		return false, fmt.Errorf("file %s is not a csv",filename)
+	}
+
+	if _,err := os.Stat(filename); err != nil && os.IsNotExist(err){
+		return false,fmt.Errorf("file %s does not exist",filename)
+	}
+
+	return true, nil
+}
 
 
 func main(){
