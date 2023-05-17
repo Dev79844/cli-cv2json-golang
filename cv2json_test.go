@@ -46,21 +46,21 @@ func Test_getFileData(t *testing.T) {
 
 func Test_checkIfValidFile(t *testing.T) {
 
-	tmpFile,err := ioutil.TempFile("","test*.csv")
-	if err!=nil {
+	tmpFile, err := ioutil.TempFile("", "test*.csv")
+	if err != nil {
 		panic(err)
 	}
 
 	defer os.Remove(tmpFile.Name())
-	
+
 	tests := []struct {
-		name    string
-		filename    string
-		want    bool
-		wantErr bool
+		name     string
+		filename string
+		want     bool
+		wantErr  bool
 	}{
 		{"File exists", tmpFile.Name(), true, false},
-		{"File does not exist", "emp/emp.csv",false,true},
+		{"File does not exist", "emp/emp.csv", false, true},
 		{"File is not csv", "test.txt", false, true},
 	}
 	for _, tt := range tests {
@@ -72,6 +72,49 @@ func Test_checkIfValidFile(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("checkIfValidFile() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_processCsv(t *testing.T) {
+	
+	wantMapSlice := []map[string] string{
+		{"COL1": "1", "COL2": "2", "COL3": "3"},
+		{"COL1": "4", "COL2": "5", "COL3": "6"},
+	}
+
+
+
+	tests := []struct {
+		name string
+		csvString string
+		seperator string
+	}{
+		{"Comma separator", "COL1,COL2,COL3\n1,2,3\n4,5,6\n", "comma"},
+		{"Semicolon separator", "COL1;COL2;COL3\n1;2;3\n4;5;6\n", "semicolon"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpfile, err := ioutil.TempFile("", "test*.csv")
+			check(err)
+			
+			defer os.Remove(tmpfile.Name()) 
+			_, err = tmpfile.WriteString(tt.csvString) 
+			tmpfile.Sync()
+			testFileData := inputFile{
+				filePath: tmpfile.Name(),
+				pretty: false,
+				seperator: tt.seperator,
+			}
+			writerChannel := make(chan map[string]string)
+			go processCsv(testFileData, writerChannel)
+			// Iterating over the slice containing the expected map values
+			for _, wantMap := range wantMapSlice {
+				record := <-writerChannel // Waiting for the record that we want to compare
+				if !reflect.DeepEqual(record, wantMap) { // Making the corresponding test assertion
+					t.Errorf("processCsv() = %v, want %v", record, wantMap)
+				}
 			}
 		})
 	}
